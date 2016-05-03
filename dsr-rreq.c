@@ -681,6 +681,64 @@ rreq_tbl_proc_info(char *buffer, char **start, off_t offset, int length, int *eo
 	return len;
 }
 
+/* Similar to above function, for using with proc_create() */
+static int rreq_tbl_proc_show(struct seq_file *m, void *v)
+{
+	list_t *pos1, *pos2;
+	int len = 0;
+	int first = 1;
+	struct timeval now;
+	struct tbl *t = &rreq_tbl;
+
+	gettime(&now);
+
+	read_lock_bh(&t->lock);
+	
+	seq_printf(m, "# %-15s %-6s %-8s %15s:%s\n", "IPAddr", "TTL", "Used",
+		    "TargetIPAddr", "ID");
+
+	list_for_each(pos1, &t->head) {
+		struct rreq_tbl_entry *e = (struct rreq_tbl_entry *)pos1;
+		struct id_entry *id_e;
+
+		if (TBL_EMPTY(&e->rreq_id_tbl))
+			seq_printf(m, "  %-15s %-6u %-8lu %15s:%s\n",
+				    print_ip(e->node_addr), e->ttl,
+				    timeval_diff(&now, &e->last_used) / 1000000,
+				    "-", "-");
+		else {
+			id_e = (struct id_entry *)TBL_FIRST(&e->rreq_id_tbl);
+			seq_printf(m, "  %-15s %-6u %-8lu %15s:%u\n",
+				    print_ip(e->node_addr), e->ttl,
+				    timeval_diff(&now, &e->last_used) / 1000000,
+				    print_ip(id_e->trg_addr), id_e->id);
+		}
+		list_for_each(pos2, &e->rreq_id_tbl.head) {
+			id_e = (struct id_entry *)pos2;
+			if (!first)
+				seq_printf(m, "%49s:%u\n",
+					    print_ip(id_e->trg_addr), id_e->id);
+			first = 0;
+		}
+	}
+
+	read_unlock_bh(&t->lock);
+	return 0;
+}
+
+/* For using with proc_create() */
+static int rreq_tbl_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, rreq_tbl_proc_show, NULL);
+}
+static const struct file_operations rreq_tbl_proc_fops = {
+       .open           = rreq_tbl_proc_open,
+       .read           = seq_read,
+       .llseek         = seq_lseek,
+       .release        = seq_release,
+};
+
+
 #endif				/* __KERNEL__ */
 
 int __init NSCLASS rreq_tbl_init(void)
@@ -690,12 +748,20 @@ int __init NSCLASS rreq_tbl_init(void)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
 #define proc_net init_net.proc_net
 #endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc = create_proc_read_entry(RREQ_TBL_PROC_NAME, 0, proc_net, rreq_tbl_proc_info, NULL);
-	
+#else
+	/* create_proc_read_entry() function is deprecated, use proc_create
+	 * instead */
+	proc = proc_create(RREQ_TBL_PROC_NAME, 0444, proc_net, &rreq_tbl_proc_fops);
+#endif
+
 	if (!proc)
 		return -1;
-	
+
 	get_random_bytes(&rreq_seqno, sizeof(unsigned int));
+
 #else
 	rreq_seqno = 0;
 #endif

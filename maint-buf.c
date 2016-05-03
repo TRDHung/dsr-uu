@@ -702,6 +702,52 @@ maint_buf_get_info(char *buffer, char **start, off_t offset, int length, int *eo
 	return len;
 }
 
+/* Similar to above function, for using with proc_create() */
+static int maint_buf_proc_show(struct seq_file *m, void *v)
+{
+	list_t *p;
+	int len;
+	struct timeval now;
+	struct tbl *t = &maint_buf;
+
+	gettime(&now);
+
+	seq_printf(m, "# %-15s %-5s %-6s %-2s %-8s %-15s %-15s\n",
+		      "NeighAddr", "Rexmt", "Id", "AR", "RTO", "TxTime", "Expires");
+
+	read_lock_bh(&t->lock);
+
+	list_for_each(p, &t->head) {
+		struct maint_entry *e = (struct maint_entry *)p;
+
+		if (e && e->dp)
+			seq_printf(m,
+				    "  %-15s %-5d %-6u %-2d %-8u %-15s %-15s\n",
+				    print_ip(e->nxt_hop), e->rexmt, e->id,
+				    e->ack_req_sent, (unsigned int)e->rto, 
+				    print_timeval(&e->tx_time),
+				    print_timeval(&e->expires));
+	}
+
+	seq_printf(m, "\nQueue length      : %u\n"
+		            "Queue max. length : %u\n", t->len, t->max_len);
+
+	read_unlock_bh(&t->lock);
+
+	return 0;
+}
+
+/* For using with proc_create() */
+static int maint_buf_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, maint_buf_proc_show, NULL);
+}
+static const struct file_operations maint_buf_proc_fops = {
+       .open           = maint_buf_proc_open,
+       .read           = seq_read,
+       .llseek         = seq_lseek,
+       .release        = seq_release,
+};
 #endif				/* __KERNEL__ */
 
 int NSCLASS maint_buf_init(void)
@@ -711,7 +757,14 @@ int NSCLASS maint_buf_init(void)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
 #define proc_net init_net.proc_net
 #endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc = create_proc_read_entry(MAINT_BUF_PROC_FS_NAME, 0, proc_net, maint_buf_get_info, NULL);
+#else
+	/* create_proc_read_entry() function is deprecated, use proc_create
+	 * instead */
+	proc = proc_create(MAINT_BUF_PROC_FS_NAME, 0444, proc_net, &maint_buf_proc_fops);
+#endif
 
 	if (!proc) {
 		printk(KERN_ERR "maint_buf: failed to create proc entry\n");

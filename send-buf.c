@@ -320,6 +320,48 @@ send_buf_get_info(char *buffer, char **start, off_t offset,
 	return len;
 }
 
+/* Similar to above function, for using with proc_create() */
+static int send_buf_proc_show(struct seq_file *m, void *v)
+{
+	list_t *p;
+	int len;
+	struct timeval now;
+	struct tbl *t = &send_buf;
+
+	gettime(&now);
+
+	seq_printf(m, "# %-15s %-8s\n", "IPAddr", "Age (s)");
+
+	read_lock_bh(&t->lock);
+
+	list_for_each(p, &t->head) {
+		struct send_buf_entry *e = (struct send_buf_entry *)p;
+
+		if (e && e->dp)
+			seq_printf(m, "  %-15s %-8lu\n",
+				       print_ip(e->dp->dst),
+				       timeval_diff(&now, &e->qtime) / 1000000);
+	}
+
+	seq_printf(m, "\nQueue length      : %u\n"
+		             "Queue max. length : %u\n", t->len, t->max_len);
+
+	read_unlock_bh(&t->lock);
+
+	return 0;
+}
+
+/* For using with proc_create() */
+static int send_buf_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, send_buf_proc_show, NULL);
+}
+static const struct file_operations send_buf_proc_fops = {
+       .open           = send_buf_proc_open,
+       .read           = seq_read,
+       .llseek         = seq_lseek,
+       .release        = seq_release,
+};
 #endif				/* __KERNEL__ */
 
 int __init NSCLASS send_buf_init(void)
@@ -330,8 +372,15 @@ int __init NSCLASS send_buf_init(void)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
 #define proc_net init_net.proc_net
 #endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc = create_proc_read_entry(SEND_BUF_PROC_FS_NAME, 0, 
 				      proc_net, send_buf_get_info, NULL);
+#else
+	/* create_proc_read_entry() function is deprecated, use proc_create
+	 * instead */
+	proc = proc_create(SEND_BUF_PROC_FS_NAME, 0444, proc_net, &send_buf_proc_fops);
+#endif
 
 	if (!proc) {
 		printk(KERN_ERR "send_buf: failed to create proc entry\n");

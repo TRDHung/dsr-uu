@@ -696,6 +696,61 @@ static int lc_proc_info(char *buffer, char **start, off_t offset, int length, in
 	return len;
 }
 
+/* Similar to above function, for using with proc_create() */
+static int lc_proc_show(struct seq_file *m, void *v)
+{
+	list_t *pos;
+	int len = 0;
+	struct timeval now;
+
+	gettime(&now);
+
+	read_lock_bh(&LC.lock);
+
+	seq_printf(m, "# %-15s %-15s %-4s Timeout\n", "Src Addr", 
+		       "Dst Addr", "Cost");
+
+	list_for_each(pos, &LC.links.head) {
+		struct lc_link *link = (struct lc_link *)pos;
+
+		seq_printf(m, "  %-15s %-15s %-4u %lu\n",
+			       print_ip(link->src->addr),
+			       print_ip(link->dst->addr),
+			       link->cost,
+			       timeval_diff(&link->expires, &now) / 1000000);
+	}
+
+	seq_printf(m, "\n# %-15s %-4s %-4s %-5s %12s %12s\n", 
+		       "Addr", "Hops", "Cost", "Links", "This", "Pred");
+
+	list_for_each(pos, &LC.nodes.head) {
+		struct lc_node *n = (struct lc_node *)pos;
+
+		seq_printf(m, "  %-15s %4s %4s %5u %12lX %12lX\n",
+			       print_ip(n->addr),
+			       print_hops(n->hops),
+			       print_cost(n->cost),
+			       n->links,
+			       (unsigned long)n, (unsigned long)n->pred);
+	}
+
+	read_unlock_bh(&LC.lock);
+
+	return 0;
+}
+
+/* For using with proc_create() */
+static int lc_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, lc_proc_show, NULL);
+}
+static const struct file_operations lc_proc_fops = {
+       .open           = lc_proc_open,
+       .read           = seq_read,
+       .llseek         = seq_lseek,
+       .release        = seq_release,
+};
+
 EXPORT_SYMBOL(lc_srt_add);
 EXPORT_SYMBOL(lc_srt_find);
 EXPORT_SYMBOL(lc_flush);
@@ -720,7 +775,15 @@ int __init NSCLASS lc_init(void)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
 #define proc_net init_net.proc_net
 #endif
+	
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc = create_proc_read_entry(LC_PROC_NAME, 0, proc_net, lc_proc_info, NULL);
+#else
+	/* create_proc_read_entry() function is deprecated, use proc_create
+	 * instead */
+	proc = proc_create(LC_PROC_NAME, 0444, proc_net, &lc_proc_fops);
+#endif
 
 	if (!proc) {
 		printk(KERN_ERR "lc_init: failed to create proc entry\n");

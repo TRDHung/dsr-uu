@@ -179,6 +179,45 @@ grat_rrep_tbl_proc_info(char *buffer, char **start, off_t offset, int length, in
 	return len;
 }
 
+/* Similar to above function, for using with proc_create() */
+static int grat_rrep_tbl_proc_show(struct seq_file *m, void *v)
+{
+	list_t *pos;
+	int len = 0;
+	struct timeval now;
+	struct tbl *t = &grat_rrep_tbl;
+
+	gettime(&now);
+
+	read_lock_bh(&t->lock);
+
+	seq_printf(m, "# %-15s %-15s Time\n", "Source", "Prev hop");
+
+	list_for_each(pos, &t->head) {
+		struct grat_rrep_entry *e = (struct grat_rrep_entry *)pos;
+
+		seq_printf(m, "  %-15s %-15s %lu\n",
+			       print_ip(e->src),
+			       print_ip(e->prev_hop),
+			       timeval_diff(&e->expires, &now) / 1000000);
+	}
+
+	read_unlock_bh(&t->lock);
+
+	return 0;
+}
+
+/* For using with proc_create() */
+static int grat_rrep_tbl_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, grat_rrep_tbl_proc_show, NULL);
+}
+static const struct file_operations grat_rrep_tbl_proc_fops = {
+       .open           = grat_rrep_tbl_proc_open,
+       .read           = seq_read,
+       .llseek         = seq_lseek,
+       .release        = seq_release,
+};
 #endif				/* __KERNEL__ */
 
 static inline int
@@ -416,8 +455,16 @@ int __init NSCLASS grat_rrep_tbl_init(void)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
 #define proc_net init_net.proc_net
 #endif
+
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc = create_proc_read_entry(GRAT_RREP_TBL_PROC_NAME, 0, proc_net, grat_rrep_tbl_proc_info, NULL);
-	
+#else
+	/* create_proc_read_entry() function is deprecated, use proc_create
+	 * instead */
+	proc = proc_create(GRAT_RREP_TBL_PROC_NAME, 0444, proc_net, &grat_rrep_tbl_proc_fops);
+#endif
+
 	if (!proc)
 		return -1;
 #endif

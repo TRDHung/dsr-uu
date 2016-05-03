@@ -326,6 +326,41 @@ neigh_tbl_proc_info(char *buffer, char **start, off_t offset, int length, int *e
 	return len;
 }
 
+/* Similar to above function, for using with proc_create() */
+static int neigh_tbl_proc_show(struct seq_file *m, void *v)
+{
+	list_t *pos;
+	int len = 0;
+
+	read_lock_bh(&neigh_tbl.lock);
+
+	seq_printf(m, "# %-15s %-17s %-10s %-6s\n", "Addr", "HwAddr",
+		    "RTO (usec)", "Id" /*, "AckRxTime","AckTxTime" */ );
+
+	list_for_each(pos, &neigh_tbl.head) {
+		struct neighbor *neigh = (struct neighbor *)pos;
+
+		seq_printf(m, "  %-15s %-17s %-10lu %-6u\n",
+			       print_ip(neigh->addr),
+			       print_eth(neigh->hw_addr.sa_data),
+			       neigh->t_rxtcur, neigh->id);
+	}
+
+	read_unlock_bh(&neigh_tbl.lock);
+	return 0;
+}
+
+/* For using with proc_create() */
+static int neigh_tbl_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, neigh_tbl_proc_show, NULL);
+}
+static const struct file_operations neigh_tbl_proc_fops = {
+       .open           = neigh_tbl_proc_open,
+       .read           = seq_read,
+       .llseek         = seq_lseek,
+       .release        = seq_release,
+};
 #endif				/* __KERNEL__ */
 
 int __init NSCLASS neigh_tbl_init(void)
@@ -335,7 +370,15 @@ int __init NSCLASS neigh_tbl_init(void)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
 #define proc_net init_net.proc_net
 #endif
+
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc = create_proc_read_entry(NEIGH_TBL_PROC_NAME, 0, proc_net, neigh_tbl_proc_info, NULL);
+#else
+	/* create_proc_read_entry() function is deprecated, use proc_create
+	 * instead */
+	proc = proc_create(NEIGH_TBL_PROC_NAME, 0444, proc_net, &neigh_tbl_proc_fops);
+#endif
 
 	if (!proc)
 		return -1;
