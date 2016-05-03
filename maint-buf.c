@@ -808,8 +808,10 @@ void NSCLASS maint_buf_cleanup(void)
 #ifdef __KERNEL__
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 	proc_net_remove(MAINT_BUF_PROC_FS_NAME);
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc_net_remove(&init_net, MAINT_BUF_PROC_FS_NAME);
+#else
+	remove_proc_entry (MAINT_BUF_PROC_FS_NAME, proc_net);
 #endif
 #endif
 }

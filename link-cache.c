@@ -809,8 +809,10 @@ void __exit NSCLASS lc_cleanup(void)
 #ifdef __KERNEL__
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 	proc_net_remove(LC_PROC_NAME);
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc_net_remove(&init_net, LC_PROC_NAME);
+#else
+	remove_proc_entry (LC_PROC_NAME, proc_net);
 #endif
 #endif
 }

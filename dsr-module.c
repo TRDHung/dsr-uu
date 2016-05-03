@@ -454,8 +454,10 @@ static int __init dsr_module_init(void)
 cleanup_proc:
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 	proc_net_remove(CONFIG_PROC_NAME);
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc_net_remove(&init_net, CONFIG_PROC_NAME);
+#else
+	remove_proc_entry (CONFIG_PROC_NAME, proc_net);
 #endif
 
 #endif /* KERNEL26 */
@@ -494,8 +496,11 @@ static void __exit dsr_module_cleanup(void)
 	dsr_dev_cleanup();
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 	proc_net_remove(CONFIG_PROC_NAME);
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc_net_remove(&init_net, CONFIG_PROC_NAME);
+#else
+	/* proc_net_remove is removed from 3.10, use remove_proc_entry */
+	remove_proc_entry (CONFIG_PROC_NAME, proc_net);
 #endif
 	rreq_tbl_cleanup();
 	grat_rrep_tbl_cleanup();

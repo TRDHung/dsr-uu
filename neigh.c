@@ -399,8 +399,10 @@ void __exit NSCLASS neigh_tbl_cleanup(void)
 #ifdef __KERNEL__
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 	proc_net_remove(NEIGH_TBL_PROC_NAME);
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc_net_remove(&init_net, NEIGH_TBL_PROC_NAME);
+#else
+	remove_proc_entry (NEIGH_TBL_PROC_NAME, proc_net);
 #endif
 #endif
 }

@@ -287,8 +287,11 @@ void __exit dbg_cleanup(void)
 {
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 	proc_net_remove("dsr_dbg");
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc_net_remove(&init_net, "dsr_dbg");
+#else
+	/* proc_net_remove is removed from 3.10, use remove_proc_entry */
+	remove_proc_entry ("dsr_dbg", proc_net);
 #endif
 }
 

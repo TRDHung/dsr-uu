@@ -787,8 +787,10 @@ void __exit NSCLASS rreq_tbl_cleanup(void)
 #ifdef __KERNEL__
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 	proc_net_remove(RREQ_TBL_PROC_NAME);
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc_net_remove(&init_net, RREQ_TBL_PROC_NAME);
+#else
+	remove_proc_entry (RREQ_TBL_PROC_NAME, proc_net);
 #endif
 #endif
 }

@@ -417,8 +417,10 @@ void __exit NSCLASS send_buf_cleanup(void)
 #ifdef __KERNEL__
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
 	proc_net_remove(SEND_BUF_PROC_FS_NAME);
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc_net_remove(&init_net, SEND_BUF_PROC_FS_NAME);
+#else
+	remove_proc_entry (SEND_BUF_PROC_FS_NAME, proc_net);
 #endif
 
 #endif
