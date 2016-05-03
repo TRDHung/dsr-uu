@@ -268,11 +268,17 @@ int __init dbg_init(void)
 #define proc_net init_net.proc_net
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	entry =
 	    create_proc_entry("dsr_dbg", S_IRUSR | S_IRGRP | S_IROTH, proc_net);
 
 	if (entry)
 		entry->proc_fops = &proc_dbg_operations;
+#else
+	/* create_proc_entry is removed from 3.10, use proc_create instead */
+	entry = proc_create("dsr_dbg", S_IRUSR | S_IRGRP | S_IROTH, proc_net,
+												&proc_dbg_operations);
+#endif
 
 	return 0;
 }

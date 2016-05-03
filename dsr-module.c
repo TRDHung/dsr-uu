@@ -411,16 +411,30 @@ static int __init dsr_module_init(void)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
 #define proc_net init_net.proc_net
 #endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	proc = create_proc_entry(CONFIG_PROC_NAME, S_IRUGO | S_IWUSR, proc_net);
 
 	if (!proc)
 		goto cleanup_maint_buf;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
 	proc->owner = THIS_MODULE;
-#endif
 	proc->read_proc = dsr_config_proc_read;
 	proc->write_proc = dsr_config_proc_write;
+#else
+	/* create_proc_entry is removed from 3.10, use proc_create instead */
+	static const struct file_operations dsr_config_proc_fops = {
+		.owner = THIS_MODULE,
+		.open  = dsr_config_proc_read,
+		.read  = dsr_config_proc_write,
+	};
+
+	proc = proc_create(CONFIG_PROC_NAME, S_IRUGO | S_IWUSR, proc_net,
+												&dsr_config_proc_fops);
+	if (!proc)
+		goto cleanup_maint_buf;
+
+#endif
 
 #ifndef KERNEL26
 	inet_add_protocol(&dsr_inet_prot);
