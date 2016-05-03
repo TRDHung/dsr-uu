@@ -350,6 +350,7 @@ static struct net_protocol dsr_inet_prot = {
 	.err_handler = dsr_ip_recv_err,
 #ifdef KERNEL26
 	.no_policy = 1,
+	.netns_ok = 1,
 #else
 	.protocol = IPPROTO_DSR,
 	.name = "DSR"
